@@ -1,0 +1,58 @@
+# Install redis on CentOS 
+# Required {{ redis_password }} variable defined 
+---
+ - name: ensure packages installed
+   yum: name={{ item }} state=latest
+   with_items:
+      - make
+
+ - name: Uploading latest version of Redis
+   copy: src=files/redis-3.0.7.tar dest=/tmp/redis-3.0.7.tar 
+
+ - name: Unarchive redis 
+   command: tar xvf /tmp/redis-3.0.7.tar -C /tmp
+
+ - name: build redis
+   command: make -C /tmp/redis-3.0.7
+
+ - name: create redis group
+   group: name=redis state=present system=yes
+
+ - name: create redis user
+   user: name=redis group=redis createhome=no shell=/bin/false system=yes state=present
+
+ - name: make sure that /etc/redis exists
+   file: path=/etc/redis state=directory mode=0755
+
+ - name: make sure that /var/lib/redis exists
+   file: path=/var/lib/redis state=directory mode=0755 group=redis owner=redis
+
+ - name: make sure redis.log file exists
+   copy: src=templates/redis/redis.log dest=/var/log/redis.log owner=redis group=redis mode=0644
+
+## This only works for CentOS 6.X
+ - name: copy init script 
+   copy: src=templates/redis/redis-init dest=/etc/init.d/redis owner=root mode=0755
+
+ - name: copy redis.conf file
+   template: src=templates/redis/redis.conf dest=/etc/redis.conf group=redis owner=redis
+   tags:
+    - redis-config
+
+ - name: installing redis binaries
+   command: cp /tmp/redis-3.0.7/src/{{ item }} /usr/local/bin
+   with_items: 
+      - redis-server
+      - redis-cli
+      - redis-check-aof
+      - redis-check-dump
+   ignore_errors: true
+
+ - name: cleaning up build files
+   command: rm -rf /tmp/{{ item }}
+   with_items:
+    - redis-3.0.7
+    - redis-3.0.7.tar
+
+ - name: ensure redis service is restarted
+   service: name=redis state=restarted enabled=yes
